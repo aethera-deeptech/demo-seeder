@@ -10,7 +10,7 @@ from seeder.log import log
 VERSION = 1
 
 
-class Locked(Exception):
+class StateLockedError(Exception):
     """Another seeder holds the lock of this state file"""
 
 
@@ -42,7 +42,7 @@ class State:
         try:
             fcntl.flock(self._lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError:
-            raise Locked(f"another seeder uses the state in {folder}") from None
+            raise StateLockedError(f"another seeder uses the state in {folder}") from None
 
     def gateway(self, account, hardware_id):
         """The dict of one gateway, which is made empty on first use and is changed in place"""

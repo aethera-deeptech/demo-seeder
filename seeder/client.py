@@ -20,7 +20,7 @@ class ApiError(Exception):
         return self.body.get("code", "")
 
 
-class RateLimited(ApiError):
+class RateLimitedError(ApiError):
     def __init__(self, status, body, where=""):
         super().__init__(status, body, where)
         self.retry_after = int(self.body.get("retryAfterSeconds", 5))
@@ -89,5 +89,5 @@ class Client:
         if status == expect:
             return body
         if status == 429:
-            raise RateLimited(status, body, f"{method} {path}")
+            raise RateLimitedError(status, body, f"{method} {path}")
         raise ApiError(status, body, f"{method} {path}")

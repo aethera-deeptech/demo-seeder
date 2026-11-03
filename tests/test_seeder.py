@@ -5,8 +5,10 @@ import textwrap
 import unittest
 
 from seeder import config
+from seeder.client import ApiError
 from seeder.registry import PROFILES, load_plugins
 from seeder.runner import Seeder
+from seeder.verifiers import VerifyError
 from tests.fake_api import FakeApi
 
 TOML = """
@@ -77,7 +79,7 @@ class SeederTest(ApiCase):
         self.api.users.clear()
         seeder = self.seeder()
         seeder.cfg.accounts[0].verifier = "none"
-        with self.assertRaises(Exception):
+        with self.assertRaises(VerifyError):
             seeder.provision()
 
     def test_provision_claims_the_gateway_and_pairs_every_device_once(self):
@@ -213,7 +215,7 @@ class RobustnessTest(ApiCase):
         seeder.client.tries = 1
         runner.st["last_t"] = 1_800_000_000
         self.api.lose_answer = True
-        with self.assertRaises(Exception):
+        with self.assertRaises(ApiError):
             runner.cycle(now=1_800_000_030)
         stored = self.api.batches[-1]
         self.assertIn("pending", runner.st)
@@ -232,12 +234,12 @@ class RobustnessTest(ApiCase):
         self.assertEqual(runner.st["last_t"], 1_800_000_030)
 
     def test_a_rate_limit_keeps_the_batch_for_the_next_cycle(self):
-        from seeder.client import RateLimited
+        from seeder.client import RateLimitedError
 
         seeder, runner = self.provisioned()
         runner.st["last_t"] = 1_800_000_000
         self.api.fail_next = [429]
-        with self.assertRaises(RateLimited):
+        with self.assertRaises(RateLimitedError):
             runner.cycle(now=1_800_000_030)
         self.assertIn("pending", runner.st)
 
@@ -264,11 +266,11 @@ class RobustnessTest(ApiCase):
         self.assertEqual(len(self.api.gateways), 1)
 
     def test_a_second_seeder_cannot_use_the_same_state(self):
-        from seeder.state import Locked, State
+        from seeder.state import State, StateLockedError
 
         first, second = State(self.state), State(self.state)
         first.lock()
-        with self.assertRaises(Locked):
+        with self.assertRaises(StateLockedError):
             second.lock()
 
     def test_a_wrong_param_is_found_by_the_check(self):

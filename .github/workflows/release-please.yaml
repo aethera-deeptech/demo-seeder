@@ -1,0 +1,43 @@
+name: Release Please
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: release-please-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  release-please:
+    name: Release PR and tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # The private key of the App is a secret of the release environment, which only main can use, so a workflow on another
+    # branch cannot read it
+    environment: release
+    # The token comes from a GitHub App, so the job needs nothing from the default GITHUB_TOKEN
+    permissions: {}
+    steps:
+      # A tag or pull request created with the default GITHUB_TOKEN does not start other workflows.
+      # The token of the release GitHub App does, so the release PR runs CI and the new tag runs the Docker workflow.
+      # The App also makes the release commits, so they no longer carry a personal account, and it is the bypass actor of the tag creation ruleset.
+      - name: Create a token for the release app
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-issues: write
+
+      - name: Run release-please
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json

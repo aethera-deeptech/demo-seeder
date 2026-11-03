@@ -1,0 +1,7 @@
+# .github/tools/Dockerfile only names the images that the lint and scan jobs run, nothing ever builds or runs it as a container,
+# so a missing USER line means nothing there. The ignore is limited to that file, so the Dockerfile of the service is still checked.
+misconfigurations:
+  - id: DS-0002
+    paths:
+      - ".github/tools/Dockerfile"
+    statement: Never built, it only lets the update bot read the image pins of the workflows.

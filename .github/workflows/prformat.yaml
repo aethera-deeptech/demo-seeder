@@ -1,0 +1,99 @@
+name: Pull request format
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled, assigned, unassigned]
+
+# Like commits.yaml, a run is never cancelled and every run has a group of its own, because GitHub keeps a cancelled run of a required
+# check as unmet. The pull request is read when the run starts and not from the event, so a rerun checks what the pull request looks
+# like now. A change of the labels or of the assignees starts a new run, so removing the last one after a pass fails the check again.
+concurrency:
+  group: prformat-${{ github.run_id }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  format:
+    name: PR format
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    steps:
+      # The rules are in CONTRIBUTING.md. The pull requests that a bot opens from its own branches (Renovate, Dependabot and Release Please) are skipped.
+      - name: Branch, label, assignee and body
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PULL_REQUEST: ${{ github.event.pull_request.number }}
+        run: |
+          # gh adds the labels and the assignee of a new pull request in a call after it created the pull request, so a missing one is read
+          # again a few times before it counts
+          for attempt in 1 2 3; do
+            pr="$(gh pr view "$PULL_REQUEST" --json headRefName,body,labels,assignees,author)"
+            if [ "$(jq '(.labels | length) > 0 and (.assignees | length) > 0' <<<"$pr")" = true ]; then
+              break
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              sleep 10
+            fi
+          done
+          branch="$(jq -r .headRefName <<<"$pr")"
+          bot="$(jq -r .author.is_bot <<<"$pr")"
+
+          case "$branch" in
+            renovate/* | dependabot/* | release-please--*)
+              if [ "$bot" = true ]; then
+                echo "The branch $branch belongs to a bot, so the format is not checked."
+                exit 0
+              fi
+              ;;
+          esac
+
+          failed=0
+          fail() {
+            echo "::error title=Pull request format::$1"
+            failed=1
+          }
+
+          branch_pattern='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)/[a-z0-9][a-z0-9._-]*$'
+          if ! [[ "$branch" =~ $branch_pattern ]]; then
+            fail "The branch $branch must be named type/short-description, with a type of Conventional Commits and lowercase words joined by hyphens."
+          fi
+
+          if [ "$(jq '.labels | length' <<<"$pr")" -eq 0 ]; then
+            fail "The pull request has no label, add bug, enhancement, documentation or another label of the repository, and the check runs again."
+          fi
+
+          if [ "$(jq '.assignees | length' <<<"$pr")" -eq 0 ]; then
+            fail "The pull request has no assignee, add one and the check runs again."
+          fi
+
+          # Every line of the body is a bullet with text. A line that is only an HTML comment, such as the hint of the template, is allowed.
+          bullets=0
+          number=0
+          while IFS= read -r line; do
+            number=$((number + 1))
+            line="${line%$'\r'}"
+            if [[ -z "${line//[[:space:]]/}" ]] || [[ "$line" =~ ^\<!--.*--\>$ ]]; then
+              continue
+            fi
+            if [[ "$line" =~ ^-\ [^[:space:]] ]]; then
+              bullets=$((bullets + 1))
+            else
+              fail "The body may only hold bullets, one for each commit, and line $number is not one."
+            fi
+          done < <(jq -r .body <<<"$pr")
+
+          if [ "$bullets" -eq 0 ]; then
+            fail "The body has no bullet, list one bullet for each commit of the pull request."
+          fi
+
+          if [ "$failed" -ne 0 ]; then
+            echo "The rules are in the Pull requests section of CONTRIBUTING.md."
+            exit 1
+          fi
+
+          echo "The branch, the label, the assignee and the body follow the rules."

@@ -26,48 +26,34 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Run the tests
-        run: python3 -m unittest discover -s . -t . -v
+      # coverage is the one tool that is not in the standard library, so it goes into a throwaway virtual environment
+      - name: Install coverage
+        env:
+          # renovate: datasource=pypi depName=coverage
+          version: 7.6.10
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet "coverage==${version}"
+
+      - name: Test with coverage
+        run: |
+          "$RUNNER_TEMP/venv/bin/coverage" run --source=seeder --branch -m unittest discover -s . -t . -v
+          "$RUNNER_TEMP/venv/bin/coverage" xml -o coverage.xml
+          "$RUNNER_TEMP/venv/bin/coverage" report --skip-empty
 
       - name: Check the example configuration
         env:
           DEMO_PASSWORD: example-password
         run: python3 -m seeder check -c config/demo.example.toml
 
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The upload always fails the step on an error, because the wrapper of the action only stops on a failed signature check of the Codecov
+      # program when this is true, and otherwise it runs the program with the token. Only a pull request lets the step fail without failing the
+      # build, so a Codecov outage does not block it. A pull request from a fork has no token and its upload fails the same way.
+      - name: Upload coverage to Codecov
+        if: ${{ !cancelled() && hashFiles('coverage.xml') != '' }}
+        continue-on-error: ${{ github.ref != 'refs/heads/main' }}
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
-          persist-credentials: false
-
-      # the folder is mounted read only, so the cache of ruff is off
-      - name: Run ruff
-        run: |
-          docker run --rm -v "$PWD:/io:ro" -w /io ghcr.io/astral-sh/ruff:0.17.2@sha256:d69a8c8d529a866a6aaea0dfda672693d68671a08827db765514abc1571a78a0 check --no-cache --output-format github .
-
-  image:
-    name: Docker build
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Build the image
-        run: docker build --tag aethera-demo-seeder:ci .
-
-      - name: Check the configuration in the image
-        run: |
-          docker run --rm --env DEMO_PASSWORD=example-password \
-            --volume "$PWD/config/demo.example.toml:/config/demo.toml:ro" \
-            aethera-demo-seeder:ci check --config /config/demo.toml
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage.xml
+          fail_ci_if_error: true

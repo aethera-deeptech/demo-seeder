@@ -2,14 +2,14 @@
 
 import time
 
-from seeder.client import ApiError, RateLimited
+from seeder.client import ApiError, RateLimitedError
 
 
-class KeyRejected(Exception):
+class KeyRejectedError(Exception):
     """The API does not know the key of the gateway, so it has to enroll again"""
 
 
-class BatchRejected(ApiError):
+class BatchRejectedError(ApiError):
     """The API refuses the batch itself (400, 413, 415 or 422), so sending the same batch again can never work"""
 
 
@@ -30,7 +30,8 @@ class GatewayLink:
     def post(self, payload):
         """Sends one batch and returns the answer. A 409 with expectedSeq renumbers the batch and sends it again."""
         for _ in range(3):
-            status, headers, body = self.client.request("POST", "/device/v1/readings", payload, bearer=self.st["key"], app=False, retry=True)
+            status, headers, body = self.client.request(
+                "POST", "/device/v1/readings", payload, bearer=self.st["key"], app=False, retry=True)
             if status == 200:
                 self.st["seq"] = payload["seq"]
                 return body
@@ -39,11 +40,11 @@ class GatewayLink:
                 self.st["seq"] = payload["seq"] - 1
                 continue
             if status == 401:
-                raise KeyRejected()
+                raise KeyRejectedError()
             if status == 429:
-                raise RateLimited(status, body, "POST /device/v1/readings")
+                raise RateLimitedError(status, body, "POST /device/v1/readings")
             if status in (400, 413, 415, 422):
-                raise BatchRejected(status, body, "POST /device/v1/readings")
+                raise BatchRejectedError(status, body, "POST /device/v1/readings")
             raise ApiError(status, body, "POST /device/v1/readings")
         raise ApiError(409, {"code": "sequence_gap"}, "POST /device/v1/readings")
 

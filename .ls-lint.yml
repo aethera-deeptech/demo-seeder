@@ -1,0 +1,62 @@
+# The naming of the files of the repository, checked by the File names job of config.yaml and described in docs/ci-cd.md.
+# A file name has no extension rule of its own when it has none at all, such as Dockerfile and LICENSE.
+# ls-lint picks a rule by the number of parts after the first dot, so a name with two or three dots needs its own key to be checked at all.
+# A rule block that sits under a folder key replaces the rules above it and does not extend them, so the "**" and workflows blocks below repeat every
+# rule. Keep the lists the same when you edit one.
+# ls-lint checks only the part of a name before its first dot, so the variant parts after it, as in deploy.BAD.yaml, are not checked.
+ls:
+  # a folder is lowercase words joined by hyphens, and a leading dot marks the folder of a tool
+  .dir: regex:\.?[a-z0-9]+(-[a-z0-9]+)*
+
+  # every other file is the same, with dots for a variant such as compose.production.example.yml
+  .*: kebab-case
+  .*.*: kebab-case
+  .*.*.*: kebab-case
+
+  # a Python file is lowercase words joined by underscores, and the dunder names such as __init__ are allowed
+  .py: regex:_{0,2}[a-z0-9]+(_[a-z0-9]+)*_{0,2}
+
+  # the community files in capitals such as README.md and CODE_OF_CONDUCT.md are allowed next to kebab case
+  .md: kebab-case | SCREAMING_SNAKE_CASE
+
+  # a YAML file ends with .yml in every folder, and the workflows below are the exception. An exists rule only looks at the folder that
+  # holds it, so the ** key repeats the rules for every folder under the root
+  .yaml: exists:0
+  .*.yaml: exists:0
+  .*.*.yaml: exists:0
+  "**":
+    .dir: regex:\.?[a-z0-9]+(-[a-z0-9]+)*
+    .*: kebab-case
+    .*.*: kebab-case
+    .*.*.*: kebab-case
+    .py: regex:_{0,2}[a-z0-9]+(_[a-z0-9]+)*_{0,2}
+    .md: kebab-case | SCREAMING_SNAKE_CASE
+    .yaml: exists:0
+    .*.yaml: exists:0
+    .*.*.yaml: exists:0
+
+  # a workflow ends with .yaml and not .yml, because the name of the workflow file is part of the identity that signs an image
+  .github/workflows:
+    .dir: regex:\.?[a-z0-9]+(-[a-z0-9]+)*
+    .*: kebab-case
+    .*.*: kebab-case
+    .*.*.*: kebab-case
+    .py: regex:_{0,2}[a-z0-9]+(_[a-z0-9]+)*_{0,2}
+    .md: kebab-case | SCREAMING_SNAKE_CASE
+    .yml: exists:0
+    .*.yml: exists:0
+    .*.*.yml: exists:0
+    .yaml: kebab-case
+    .*.yaml: kebab-case
+    .*.*.yaml: kebab-case
+
+
+ignore:
+  - .git
+  - node_modules
+  - dist
+  - coverage
+  # GitHub names the issue forms by what the person sees, and Vale names a style after its folder
+  - .github/ISSUE_TEMPLATE
+  - .github/vale/styles
+  - __pycache__

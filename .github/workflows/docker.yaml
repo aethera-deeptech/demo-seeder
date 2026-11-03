@@ -1,0 +1,220 @@
+name: Docker
+
+# Never add workflow_call here. A workflow that calls this one would get signatures with the identity of this file on main, and the
+# Docker Hub mirror and the checks in the docs accept that identity.
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*.*.*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: docker-${{ github.workflow }}-${{ github.ref }}
+  # A run that has started is never cancelled unless it builds a pull request. Cancelling a run on main or a tag after the push
+  # has moved the tags but before the image is scanned and signed would leave an unsigned image under them. A run that is still
+  # waiting is replaced by a newer one, which is fine because only the newest commit on main matters for latest. The group
+  # is the ref, so two runs for main never overlap and never move latest at the same time. The run for a release tag is in a
+  # group of its own and can overlap a run for main, which is harmless because it only adds the version tags.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions: {}
+
+jobs:
+  image:
+    name: Build, scan and push image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      security-events: write
+    env:
+      # Dependabot and fork runs get no write access or secrets, so they only build. A manual run only publishes from main,
+      # because the signature check accepts no other branch
+      PUSH: ${{ github.actor != 'dependabot[bot]' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main') }}
+      # This job never logs in to Docker Hub, because a pull request can change it. The docker-hub-mirror workflow copies the image
+      # there from main, and these two are only used to name the image in its attestation
+      HUB: ${{ vars.DOCKERHUB_USERNAME != '' }}
+      HUB_IMAGE: ${{ vars.DOCKERHUB_USERNAME || 'local' }}/aethera-demo-seeder
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Compute image names
+        run: echo "GHCR_IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
+      - name: Compute build version
+        id: version
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        env:
+          # A pull request build runs on a merge commit that GitHub makes, so without this the sha tag names that commit and
+          # not the commit of the branch. The Docker Hub mirror finds the image by the commit of the branch.
+          DOCKER_METADATA_PR_HEAD_SHA: "true"
+        with:
+          images: ${{ env.GHCR_IMAGE }}
+          # A release makes two runs for the same commit, one for main and one for the tag. Both would move latest and the
+          # sha tag, and the run that finishes last wins, so only main publishes them and a tag run only adds its version tags.
+          # The default flavor adds latest to every semver tag by itself, so it is turned off and the raw tag below decides.
+          flavor: latest=false
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,prefix=sha-,format=short,enable=${{ github.ref_type != 'tag' }}
+            type=ref,event=pr,prefix=pr-
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            # a major version of 0 means that the API can still change, so no floating tag points at it
+            type=semver,pattern={{major}},enable=${{ !startsWith(github.ref, 'refs/tags/v0.') }}
+
+      - name: Login to GitHub Container Registry
+        if: env.PUSH == 'true'
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build and push image
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        env:
+          # the build record is one more artifact for every run and nothing reads it
+          DOCKER_BUILD_RECORD_UPLOAD: "false"
+        with:
+          context: .
+          push: ${{ env.PUSH == 'true' }}
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          # Only main writes the cache. A pull request and a tag read the cache of main and write none, because a cache that a
+          # pull request or a tag wrote can only be read by that same ref. Every push to a pull request used to add about 120 MB
+          # of layers, which pushed the repository over the 10 GB limit and evicted the caches of main
+          cache-to: ${{ github.ref == 'refs/heads/main' && 'type=gha,mode=max' || '' }}
+
+      # The build digest is the one of the index of both platforms. Each platform has an image of its own with its own
+      # digest, and scanning that digest is the only way to be sure which of them Trivy looked at
+      - name: Find the image of each platform
+        id: platforms
+        if: env.PUSH == 'true'
+        env:
+          INDEX: ${{ env.GHCR_IMAGE }}@${{ steps.build.outputs.digest }}
+        run: |
+          manifest="$(docker buildx imagetools inspect "$INDEX" --raw)"
+          for arch in amd64 arm64; do
+            digest="$(jq -r --arg arch "$arch" '.manifests[] | select(.platform.os == "linux" and .platform.architecture == $arch) | .digest' <<< "$manifest")"
+            test -n "$digest"
+            echo "$arch $digest"
+            echo "$arch=$digest" >> "$GITHUB_OUTPUT"
+          done
+
+      - name: Trivy image scan (amd64)
+        if: env.PUSH == 'true'
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          image-ref: ${{ env.GHCR_IMAGE }}@${{ steps.platforms.outputs.amd64 }}
+          format: sarif
+          output: trivy-image.sarif
+          severity: CRITICAL,HIGH
+          limit-severities-for-sarif: true
+
+      - name: Upload Trivy results to code scanning (amd64)
+        if: ${{ env.PUSH == 'true' && always() }}
+        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          sarif_file: trivy-image.sarif
+          category: trivy-image
+
+      - name: Trivy image scan (arm64)
+        if: env.PUSH == 'true'
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          image-ref: ${{ env.GHCR_IMAGE }}@${{ steps.platforms.outputs.arm64 }}
+          format: sarif
+          output: trivy-image-arm64.sarif
+          severity: CRITICAL,HIGH
+          limit-severities-for-sarif: true
+
+      - name: Upload Trivy results to code scanning (arm64)
+        if: ${{ env.PUSH == 'true' && always() }}
+        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          sarif_file: trivy-image-arm64.sarif
+          category: trivy-image-arm64
+
+      - name: Generate SBOM
+        if: env.PUSH == 'true'
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          image: ${{ env.GHCR_IMAGE }}@${{ steps.build.outputs.digest }}
+          format: cyclonedx-json
+          output-file: sbom.cdx.json
+          upload-artifact: true
+          upload-artifact-retention: 14
+          upload-release-assets: false
+
+      - name: Attest SBOM for GitHub Container Registry
+        if: env.PUSH == 'true'
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-name: ${{ env.GHCR_IMAGE }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          sbom-path: sbom.cdx.json
+
+      - name: Attest SBOM for Docker Hub
+        if: env.PUSH == 'true' && env.HUB == 'true'
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-name: docker.io/${{ env.HUB_IMAGE }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          sbom-path: sbom.cdx.json
+
+      - name: Install cosign
+        if: env.PUSH == 'true'
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      # The default bundle format of cosign 3 is stored as an OCI referrer, and GitHub Container Registry lists it under the wrong type, so a plain cosign verify finds nothing
+      # The classic format is a .sig tag that every registry and every cosign version can read
+      - name: Sign image (keyless)
+        if: env.PUSH == 'true'
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          cosign sign --yes --use-signing-config=false --new-bundle-format=false "${GHCR_IMAGE}@${DIGEST}"
+
+      # A signing step that did nothing useful would pass unnoticed, so check every signature against the identity of this workflow
+      - name: Verify the signature
+        if: env.PUSH == 'true'
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          identity="^https://github\.com/${REPOSITORY}/\.github/workflows/docker\.yaml@refs/(heads/main|tags/v.+|pull/[0-9]+/merge)$"
+          verify() {
+            cosign verify \
+              --new-bundle-format=false \
+              --certificate-identity-regexp "$identity" \
+              --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+              "$1@${DIGEST}" > /dev/null
+          }
+          verify "$GHCR_IMAGE"
