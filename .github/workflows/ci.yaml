@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run the tests
+        run: python3 -m unittest discover -s . -t . -v
+
+      - name: Check the example configuration
+        env:
+          DEMO_PASSWORD: example-password
+        run: python3 -m seeder check -c config/demo.example.toml
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # the folder is mounted read only, so the cache of ruff is off
+      - name: Run ruff
+        run: |
+          docker run --rm -v "$PWD:/io:ro" -w /io ghcr.io/astral-sh/ruff:0.17.2@sha256:d69a8c8d529a866a6aaea0dfda672693d68671a08827db765514abc1571a78a0 check --no-cache --output-format github .
+
+  image:
+    name: Docker build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build the image
+        run: docker build --tag aethera-demo-seeder:ci .
+
+      - name: Check the configuration in the image
+        run: |
+          docker run --rm --env DEMO_PASSWORD=example-password \
+            --volume "$PWD/config/demo.example.toml:/config/demo.toml:ro" \
+            aethera-demo-seeder:ci check --config /config/demo.toml

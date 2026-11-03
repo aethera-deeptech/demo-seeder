@@ -1,0 +1,91 @@
+# The configuration of the seeder. Copy this file to config/demo.toml and change it.
+# Every account below is kept alive by simulated gateways, which send a batch of samples to the API every interval.
+
+[api]
+base_url = "https://aethera-api.syafahadyan.com"
+# the origin that the API allows for the web app, which a request that changes data has to name
+origin = "https://aethera.syafahadyan.com"
+user_agent = "aethera-demo-seeder"
+
+[run]
+# a gateway may send 600 batches in an hour, so the interval has to be 10 seconds or more
+interval_seconds = 30
+# the time between two samples of a device. A device that sends a sample at least every 5 minutes keeps its energy exact.
+sample_period_seconds = 10
+# the key and the sequence number of every gateway, which has to be on a volume so a restart continues where it stopped
+state_file = "/data/state.json"
+# the hours of a day in the profiles are local. A time zone name follows daylight saving, and the offset is a fixed number of hours.
+timezone = "Asia/Jakarta"
+# utc_offset_hours = 7
+# every .py file in this folder can add profiles and verifiers, see the README
+plugins_dir = "plugins"
+# a number makes the noise of every device the same on every run, and leaving it out makes it different each time
+# seed = 1
+
+[[accounts]]
+name = "demo"
+email = "delivered+aethera-demo@resend.dev"
+# the name of an environment variable that holds the password, so the password stays out of this file
+password_env = "DEMO_PASSWORD"
+business_name = "Demo Aethera"
+# when the account does not exist the seeder makes it, and the verifier reads the link of the verification mail.
+# The verifier none needs an account that exists and is verified already. Set create = false to never make one.
+verifier = "none"
+create = true
+
+  [[accounts.gateways]]
+  name = "Hub Produksi"
+  # a hardware id that this business claimed before keeps its readings and gets a new key, so this can adopt a gateway that exists
+  hardware_id = "DEMO-HUB-0001"
+  # true takes over a gateway of this business that exists already, and replaces its key. Leave it out for a new gateway.
+  adopt = true
+
+    [[accounts.gateways.devices]]
+    node_id = "PLUG-DEMO-0001"
+    kind = "plug"
+    name = "Mesin jahit 1"
+    room = "Ruang jahit"
+    profile = "scheduled"
+    params = { on_watts = 250, standby_watts = 4, start = "08:00", end = "17:00", days = "mon-sat" }
+
+    [[accounts.gateways.devices]]
+    node_id = "PLUG-DEMO-0002"
+    kind = "plug"
+    name = "Setrika"
+    room = "Ruang jahit"
+    profile = "scheduled"
+    # standby_watts is high on purpose, a device that is left on at night is the waste that the tips find
+    params = { on_watts = 900, standby_watts = 35, start = "09:00", end = "16:00", days = "mon-sat", surge_probability = 0.002 }
+
+    [[accounts.gateways.devices]]
+    node_id = "CLAMP-DEMO-001"
+    kind = "clamp"
+    name = "AC kantor"
+    room = "Kantor"
+    profile = "cycling"
+    params = { on_watts = 750, off_watts = 5, period_seconds = 1500, duty = 0.55 }
+
+    [[accounts.gateways.devices]]
+    node_id = "CLAMP-DEMO-002"
+    kind = "clamp"
+    name = "Kompresor"
+    room = "Ruang jahit"
+    profile = "motor"
+    # the power factor falls after this date, which makes the service raise a motor degradation
+    params = { on_watts = 600, standby_watts = 3, start = "08:00", end = "17:00", days = "mon-sat", degrade_after = "2099-01-01" }
+
+    [[accounts.gateways.devices]]
+    node_id = "PLUG-DEMO-0003"
+    kind = "plug"
+    name = "Kulkas"
+    room = "Kantor"
+    profile = "cycling"
+    params = { on_watts = 110, off_watts = 2, period_seconds = 1800, duty = 0.4 }
+
+# A scenario changes the power of some devices for a time. This one is off, remove the # signs to try it.
+# [[scenarios]]
+# name = "power cut"
+# mode = "off"
+# devices = ["*"]
+# start = "2026-11-05T09:00"
+# end = "2026-11-05T12:00"

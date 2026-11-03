@@ -1,0 +1,10 @@
+.git
+.github
+tests
+__pycache__
+.env
+.env.*
+!.env.example
+config/demo.toml
+state.json
+**/.env
