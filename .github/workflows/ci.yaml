@@ -46,12 +46,14 @@ jobs:
           DEMO_PASSWORD: example-password
         run: python3 -m seeder check -c config/demo.example.toml
 
-      # A failed upload only fails the build on the main branch, because a Codecov outage must not block a pull request. A pull request
-      # from a fork has no token, and its upload fails without failing the build.
+      # The upload always fails the step on an error, because the wrapper of the action only stops on a failed signature check of the Codecov
+      # program when this is true, and otherwise it runs the program with the token. Only a pull request lets the step fail without failing the
+      # build, so a Codecov outage does not block it. A pull request from a fork has no token and its upload fails the same way.
       - name: Upload coverage to Codecov
         if: ${{ !cancelled() && hashFiles('coverage.xml') != '' }}
+        continue-on-error: ${{ github.ref != 'refs/heads/main' }}
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage.xml
-          fail_ci_if_error: ${{ github.ref == 'refs/heads/main' }}
+          fail_ci_if_error: true
