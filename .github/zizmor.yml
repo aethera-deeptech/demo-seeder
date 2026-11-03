@@ -1,0 +1,6 @@
+rules:
+  self-repository:
+    # actionlint does not know the "$/" syntax yet and rejects it, so the jobs that call the local pull-images action keep the "./" form
+    ignore:
+      - config.yaml
+      - security.yaml

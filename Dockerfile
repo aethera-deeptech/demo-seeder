@@ -1,6 +1,10 @@
 # The seeder uses only the standard library of Python, so there is nothing to install.
 FROM python:3.14-alpine
 
+ARG VERSION=dev
+LABEL org.opencontainers.image.version=$VERSION \
+      org.opencontainers.image.source=https://github.com/aethera-deeptech/demo-seeder
+
 RUN apk add --no-cache tzdata && adduser -D -u 10001 seeder && mkdir /data && chown seeder /data
 
 WORKDIR /app

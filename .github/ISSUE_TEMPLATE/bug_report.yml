@@ -1,0 +1,50 @@
+name: Bug report
+description: Something in the API or the service behaves wrongly
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the wrong behavior and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: The requests or actions, step by step, with any personal data removed.
+      placeholder: |
+        1. Send GET /v1/devices with a valid session
+        2. Look at the status code and the body
+        3. See the difference from what you expected
+    validations:
+      required: true
+  - type: input
+    id: area
+    attributes:
+      label: Area
+      description: The route, the job or the part of the service where it happens.
+      placeholder: The path of the route, the nightly job, the device link or the sign-in flow
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The release, the commit or the image tag you used.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Responses and logs
+      description: Anything that helps, such as the status code, the error code and the request id. Remove tokens, cookies and personal data first.
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: This is not a security problem. Those go through the private report in SECURITY.md.
+          required: true
+        - label: I removed secrets and personal data from everything above.
+          required: true

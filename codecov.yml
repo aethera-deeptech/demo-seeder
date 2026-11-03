@@ -1,0 +1,17 @@
+# Coverage comes from the tests of the CI workflow, see https://docs.codecov.com/docs/codecov-yaml
+coverage:
+  status:
+    project:
+      default:
+        # compare with the base commit and tolerate a small dip, so a refactor does not fail on rounding
+        target: auto
+        threshold: 1%
+    patch:
+      default:
+        target: auto
+        threshold: 5%
+
+comment:
+  layout: "condensed_header, diff, files"
+  # stay quiet on pull requests that do not change coverage, such as documentation changes
+  require_changes: true

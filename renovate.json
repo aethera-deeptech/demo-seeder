@@ -1,0 +1,145 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigestsToSemver"
+  ],
+  "timezone": "Asia/Jakarta",
+  "schedule": [
+    "before 7am on monday"
+  ],
+  "minimumReleaseAge": "7 days",
+  "internalChecksFilter": "strict",
+  "rebaseWhen": "conflicted",
+  "platformCommit": "enabled",
+  "semanticCommits": "enabled",
+  "semanticCommitType": "chore",
+  "semanticCommitScope": "deps",
+  "labels": [
+    "dependencies"
+  ],
+  "assignees": [
+    "SyafaHadyan"
+  ],
+  "dependencyDashboard": true,
+  "vulnerabilityAlerts": {
+    "semanticCommitType": "fix"
+  },
+  "packageRules": [
+    {
+      "matchManagers": [
+        "github-actions"
+      ],
+      "semanticCommitType": "ci",
+      "addLabels": [
+        "github_actions"
+      ]
+    },
+    {
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "groupName": "actions"
+    },
+    {
+      "description": "the images of .github/tools/Dockerfile are the tools that CI starts from a workflow, so they take the commit type of the workflows",
+      "matchManagers": [
+        "dockerfile"
+      ],
+      "matchFileNames": [
+        ".github/tools/Dockerfile"
+      ],
+      "semanticCommitType": "ci",
+      "addLabels": [
+        "github_actions"
+      ]
+    },
+    {
+      "description": "the base images of the Dockerfile in the root are part of the app image, so they take the commit type of the packages",
+      "matchManagers": [
+        "dockerfile"
+      ],
+      "matchFileNames": [
+        "Dockerfile"
+      ],
+      "semanticCommitType": "build",
+      "addLabels": [
+        "docker"
+      ],
+      "pinDigests": true
+    },
+    {
+      "description": "ghcr.io gives Renovate no release time, so with the 7 day wait and the strict filter an update of a GHCR image would be held forever, these images skip the age check",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "ghcr.io/**"
+      ],
+      "minimumReleaseAgeBehaviour": "timestamp-optional"
+    },
+    {
+      "description": "the tools that CI starts from a workflow, such as ls-lint, Vale and Renovate itself, take the commit type of the workflows",
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "semanticCommitType": "ci",
+      "addLabels": [
+        "github_actions"
+      ]
+    },
+    {
+      "description": "the Python base image of the Dockerfile moves with a minor release only after the tests pass on it, so it is a decision and not a patch update that merges alone",
+      "matchManagers": [
+        "dockerfile"
+      ],
+      "matchFileNames": [
+        "Dockerfile"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "dependencyDashboardApproval": true
+    }
+  ],
+  "customManagers": [
+    {
+      "description": "A version in a workflow that the line above names with a renovate comment, which the bot cannot find in a run step or an action input otherwise",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/[^/]+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\n\\s*(?:[a-z0-9-]*version|[A-Z][A-Z0-9_]*_VERSION): [\"']?(?<currentValue>[^\"'\\s]+)[\"']?"
+      ]
+    },
+    {
+      "description": "The release of the Google style that vale sync downloads",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.vale\\.ini$/"
+      ],
+      "matchStrings": [
+        "releases/download/(?<currentValue>v[\\d.]+)/Google\\.zip"
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "errata-ai/Google"
+    },
+    {
+      "description": "The Vale image in the commands of the CI page",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^docs/ci-cd\\.md$/"
+      ],
+      "matchStrings": [
+        "jdkato/vale:(?<currentValue>v[\\d.]+)"
+      ],
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "jdkato/vale"
+    }
+  ]
+}

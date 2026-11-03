@@ -1,0 +1,39 @@
+name: Links
+
+# Checks every link of the Markdown files once a week, because a page that moved or a status page that was renamed is only
+# noticed when someone follows it. It never runs on pull requests, so a site that is down for a day cannot block a merge.
+on:
+  schedule:
+    - cron: "0 2 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: links-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  links:
+    name: Link check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # 429 is a site that asks to slow down and not a dead link. The token only lifts the rate limit of the links to GitHub.
+      # Lychee skips code blocks, so the issuer address and the pattern with backslashes in the docs need no exclusion
+      - name: Check the links
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: >-
+            --no-progress --include-fragments --max-retries 2 --exclude-loopback --exclude 'example\.(com|org|net)' --accept '200..=299,429'
+            './*.md' './docs/**/*.md'
+          fail: true

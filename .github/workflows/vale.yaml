@@ -1,0 +1,47 @@
+name: Vale
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: vale-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  vale:
+    name: Vale prose lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Vale
+        uses: vale-cli/vale-action@518a9136acc6e6668ce7c00d367051e0941e87ff # v3.0.0
+        with:
+          # Renovate raises this version from the comment below, and it raises the Google style release in .vale.ini too
+          # renovate: datasource=github-releases depName=errata-ai/vale
+          version: 3.24.0
+          # Pull requests from forks get a read-only token and cannot create a check, so they report to the log
+          reporter: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'local' || 'github-check' }}
+          # Check every file in full on every run, so an old violation in a file that a pull request touches cannot slip past
+          filter_mode: nofilter
+          fail_on_error: true
+          # Only the rules at error level gate the build, the warnings and suggestions of the Google style stay a local hint
+          min_alert_level: error
+          level: error
+          # The action trims whitespace from its inputs, so a newline separator would silently lint the whole directory
+          separator: ","
+          files: "README.md,CONTRIBUTING.md,SECURITY.md,.github/PULL_REQUEST_TEMPLATE.md,docs"
