@@ -24,7 +24,7 @@ Every check runs in CI on your pull request, so you should not need to run heavy
 
 ## Names
 
-Names are checked in the pull request, so it is quicker to follow them from the start. Folders are lowercase words joined by hyphens, and a leading dot marks the folder of a tool. Files are lowercase words joined by hyphens, and a dot may mark a variant. Go files are lowercase words with no separator, and only `_test` may follow them, such as `devices.go` and `devices_test.go`. A Markdown file may also be written in capitals joined by underscores, such as `README.md` and `CODE_OF_CONDUCT.md`. YAML files end with `.yml`, except the workflows, which end with `.yaml`. The rules and the few files that are allowed to break them are in [docs/ci-cd.md](docs/ci-cd.md#file-names).
+Names are checked in the pull request, so it is quicker to follow them from the start. Folders are lowercase words joined by hyphens, and a leading dot marks the folder of a tool. Files are lowercase words joined by hyphens, and a dot may mark a variant. Python files are lowercase words joined by underscores, such as `fake_api.py` and `test_seeder.py`. A Markdown file may also be written in capitals joined by underscores, such as `README.md` and `CODE_OF_CONDUCT.md`. YAML files end with `.yml`, except the workflows, which end with `.yaml`. The rules and the few files that are allowed to break them are in [docs/ci-cd.md](docs/ci-cd.md#file-names).
 
 ## Pull requests
 

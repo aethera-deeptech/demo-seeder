@@ -101,7 +101,8 @@
         "Dockerfile"
       ],
       "matchUpdateTypes": [
-        "major"
+        "major",
+        "minor"
       ],
       "dependencyDashboardApproval": true
     }
@@ -128,18 +129,6 @@
       ],
       "datasourceTemplate": "github-releases",
       "depNameTemplate": "errata-ai/Google"
-    },
-    {
-      "description": "The Vale image in the commands of the CI page",
-      "customType": "regex",
-      "managerFilePatterns": [
-        "/^docs/ci-cd\\.md$/"
-      ],
-      "matchStrings": [
-        "jdkato/vale:(?<currentValue>v[\\d.]+)"
-      ],
-      "datasourceTemplate": "docker",
-      "depNameTemplate": "jdkato/vale"
     }
   ]
 }

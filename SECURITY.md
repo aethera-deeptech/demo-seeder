@@ -12,7 +12,7 @@ Use GitHub private vulnerability reporting instead. Open the [Security tab](http
 
 A good report includes the following.
 
-- A description of the problem and its impact, for example data exposure between businesses, a way around sign-in or a leaked secret.
+- A description of the problem and its impact, for example a way to reach the demo accounts or their data, a way around sign-in or a leaked secret.
 - Steps to reproduce it, or a proof of concept.
 - The commit or the address of the deployment you tested.
 - Relevant logs with any secrets removed.

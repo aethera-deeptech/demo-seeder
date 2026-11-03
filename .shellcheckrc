@@ -1,0 +1,3 @@
+# Every shell file of the repository is bash
+shell=bash
+external-sources=true

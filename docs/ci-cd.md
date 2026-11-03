@@ -7,16 +7,16 @@ This page lists every workflow of the repository, what it checks and which check
 | Workflow | File | Runs on | What it does |
 |:---|:---|:---|:---|
 | CI | `ci.yaml` | push to main, pull request | Runs the unit tests with coverage, checks the example configuration and uploads the coverage to Codecov |
-| Config lint | `config.yaml` | push to main, pull request | Lints the workflows, the Dockerfile, the env example, the compose file, the Python code, the file names and the Renovate configuration |
+| Config lint | `config.yaml` | push to main, pull request | Lints the workflows, the Dockerfile, the shell scripts, the env example, the compose file, the Python code, the file names and the Renovate configuration |
 | Security | `security.yaml` | push to main, pull request, schedule | Runs CodeQL, dependency review, gitleaks, Trivy on the file system and OSSF Scorecard |
 | Docker | `docker.yaml` | push to main, tag, pull request | Builds the image for amd64 and arm64, scans it, pushes it to GHCR, then signs it and attaches the SBOM |
-| Docker Hub mirror | `docker-hub-mirror.yaml` | after Docker on main or a tag | Verifies the signature of the GHCR image and copies it to Docker Hub as `syafa/aethera-demo-seeder` |
+| Docker Hub mirror | `docker-hub-mirror.yaml` | after Docker | Verifies the signature of the GHCR image and copies it to Docker Hub as `aethera-demo-seeder` under the account in `DOCKERHUB_USERNAME` |
 | Re-sign | `resign.yaml` | manual | Signs an image again when a signature is missing |
 | Conventional commits | `commits.yaml` | pull request | Checks every commit message and the pull request title with commitlint |
 | PR format | `prformat.yaml` | pull request | Checks the branch name, the label, the assignee and the body |
 | Release Please | `release-please.yaml` | push to main | Opens and updates the release pull request, and makes the tag and the release when it is merged |
-| Vale | `vale.yaml` | pull request | Lints the Markdown files with Vale |
-| Links | `links.yaml` | pull request, schedule | Checks the links of the Markdown files |
+| Vale | `vale.yaml` | push to main, pull request, manual | Lints the Markdown files with Vale |
+| Links | `links.yaml` | schedule, manual | Checks the links of the Markdown files |
 
 ## Required checks
 
@@ -25,7 +25,7 @@ The ruleset of the default branch is applied after the repository is public and 
 - Conventional commits
 - PR format
 - Tests
-- Actionlint, Zizmor, Hadolint, Dotenv lint, Compose config, Python lint, File names and Renovate config
+- Actionlint, Zizmor, Hadolint, ShellCheck, Dotenv lint, Compose config, Python lint, File names and Renovate config
 - Dependency review, Secret scan (gitleaks) and CodeQL
 - Build, scan and push image
 
@@ -37,7 +37,7 @@ The image has one stage on `python:3.14-alpine` and runs as user 10001. The Dock
 
 ## Pulling images
 
-Every job that pulls an image from Docker Hub goes through `.github/actions/pull-images`. The action logs in with the read-only token `DOCKERHUB_PULL_TOKEN` and falls back to the Google mirror when Docker Hub refuses the pull.
+Every job that pulls an image from Docker Hub goes through `.github/actions/pull-images`. The action logs in with the read-only token `DOCKERHUB_PULL_TOKEN`, tries the Google mirror first and falls back to Docker Hub when the mirror has no copy.
 
 ## Pinned tools
 

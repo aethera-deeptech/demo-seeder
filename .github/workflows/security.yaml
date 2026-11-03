@@ -42,8 +42,6 @@ jobs:
         with:
           category: "/language:python"
 
-
-
   dependency-review:
     name: Dependency review
     if: github.event_name == 'pull_request'
@@ -113,7 +111,7 @@ jobs:
         with:
           persist-credentials: false
 
-      # Looks at go.mod, the Dockerfile and the repository files, the built image is scanned in the Docker workflow
+      # Looks at the Dockerfile and the repository files, the built image is scanned in the Docker workflow
       - name: Trivy filesystem scan
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
