@@ -135,7 +135,7 @@ class FakeApi:
                     api.lose_answer = False
                     return self.send(500, {"code": "internal"})
                 for node in data["nodes"]:
-                    for pid, pairing in api.pairings.items():
+                    for pairing in api.pairings.values():
                         if pairing["status"] == "searching" and pairing["kind"] == node["kind"]:
                             device = api.new_id()
                             api.devices[device] = {"name": pairing["name"], "node": node["nodeId"]}

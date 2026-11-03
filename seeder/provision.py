@@ -7,10 +7,10 @@ import hashlib
 import secrets
 import time
 
+from seeder import verifiers  # noqa: F401  (registers the built-in verifiers)
 from seeder.client import ApiError
 from seeder.link import GatewayLink
 from seeder.log import log
-from seeder import verifiers  # noqa: F401  (registers the built-in verifiers)
 from seeder.registry import VERIFIERS
 
 
@@ -31,7 +31,8 @@ def sign_in(client, account):
     code = answer.get("code", "")
     if status == 401 and account.create:
         status, headers, answer = client.request("POST", "/v1/auth/register",
-                                                 {"businessName": account.business_name, "email": account.email, "password": account.password})
+                                                 {"businessName": account.business_name, "email": account.email,
+                                                  "password": account.password})
         if status == 409:
             raise AccountError(f"the account {account.email} exists and the password in the configuration is not its password")
         if status != 201:

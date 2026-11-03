@@ -242,7 +242,8 @@ def load(path, env=None, sets=()):
                     raise ConfigError(f"the device name {device.name} is used twice in the account {account.name}")
                 names.add((account.name, device.name.lower()))
     seed = run.get("seed")
-    return Config(base, _text(api, "origin", "api", "http://localhost:5173", 200), _text(api, "user_agent", "api", "aethera-demo-seeder", 100),
+    return Config(base, _text(api, "origin", "api", "http://localhost:5173", 200),
+                  _text(api, "user_agent", "api", "aethera-demo-seeder", 100),
                   interval, period, _text(run, "state_file", "run", "state.json", 300), float(run.get("utc_offset_hours", 7)),
                   _text(run, "plugins_dir", "run", "plugins", 300), None if seed is None else int(seed), accounts, timezone or None,
                   [_scenario(sc, f"scenarios[{n}]") for n, sc in enumerate(raw.get("scenarios", []))])

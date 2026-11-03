@@ -8,8 +8,8 @@ import time
 import zoneinfo
 
 from seeder import profiles, scenarios
-from seeder.client import ApiError, Client, RateLimited
-from seeder.link import BatchRejected, GatewayLink, KeyRejected
+from seeder.client import ApiError, Client, RateLimitedError
+from seeder.link import BatchRejectedError, GatewayLink, KeyRejectedError
 from seeder.log import log
 from seeder.provision import AccountError, ensure_devices, ensure_gateway, ensure_rooms, sign_in
 from seeder.registry import PROFILES, load_plugins
@@ -89,7 +89,8 @@ def validate(cfg):
                     runtime = DeviceRuntime(device, {}, cfg)
                     runtime.sample(now, cfg.sample_period)
                 except Exception as err:  # noqa: BLE001  (any error of a profile is a wrong setting for the user to fix)
-                    raise ValueError(f"device {device.node_id} of gateway {gateway.name} does not work with its profile {device.profile}, {type(err).__name__}: {err}") from err
+                    raise ValueError(f"device {device.node_id} of gateway {gateway.name} does not work with its profile {device.profile}, "
+                                     f"{type(err).__name__}: {err}") from err
 
 
 class GatewayRunner:
@@ -140,7 +141,7 @@ class GatewayRunner:
         """Sends a batch and keeps it in the state until it is acknowledged. A batch that the API refuses for good is dropped."""
         try:
             answer = self.link.post(payload)
-        except BatchRejected as err:
+        except BatchRejectedError as err:
             log("batch_dropped", gateway=self.gateway.name, error=str(err))
             self.st.pop("pending", None)
             return False
@@ -197,7 +198,7 @@ class Seeder:
                 runner = GatewayRunner(self.cfg, account, gateway, self.client, self.state)
                 try:
                     ensure_devices(self.client, cookie, gateway, stored, rooms, runner.first_sample)
-                except KeyRejected:
+                except KeyRejectedError:
                     log("key_rejected", gateway=gateway.name)
                     stored.pop("key", None)
                     ensure_gateway(self.client, cookie, gateway, stored)
@@ -213,10 +214,10 @@ class Seeder:
                 return self.provision()
             except AccountError:
                 raise
-            except RateLimited as err:
+            except RateLimitedError as err:
                 wait = min(900, max(err.retry_after, 1))
                 log("provision_rate_limited", retry_after=wait)
-            except (ApiError, OSError, KeyRejected) as err:
+            except (ApiError, OSError, KeyRejectedError) as err:
                 wait = pause
                 pause = min(300, pause * 2)
                 log("provision_failed", error=str(err), retry_in=wait)
@@ -229,13 +230,13 @@ class Seeder:
             try:
                 sent = runner.cycle()
                 log("batch_sent", gateway=name, samples=sent, seq=runner.st.get("seq"))
-            except KeyRejected:
+            except KeyRejectedError:
                 log("key_rejected", gateway=name)
                 runner.st.pop("key", None)
                 self.state.save()
                 self.provision_with_retry()
                 break
-            except RateLimited as err:
+            except RateLimitedError as err:
                 log("rate_limited", gateway=name, retry_after=err.retry_after)
             except (ApiError, OSError) as err:
                 log("batch_failed", gateway=name, error=str(err))

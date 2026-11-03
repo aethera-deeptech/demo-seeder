@@ -5,16 +5,17 @@ import sys
 
 from seeder import __version__, config
 from seeder.log import log
-from seeder.registry import PROFILES, VERIFIERS, load_plugins
 from seeder.provision import AccountError
+from seeder.registry import PROFILES, VERIFIERS, load_plugins
 from seeder.runner import Seeder, validate
-from seeder.state import Locked
+from seeder.state import StateLockedError
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="seeder", description="Keeps demo accounts of the Aethera backend alive")
     parser.add_argument("command", choices=["run", "once", "provision", "check", "plugins"],
-                        help="run sends batches until stopped, once sends one cycle, provision only makes the accounts, check reads the file")
+                        help="run sends batches until stopped, once sends one cycle, provision only makes the accounts, "
+                             "check reads the file")
     parser.add_argument("-c", "--config", default="config/demo.toml", help="the TOML file")
     parser.add_argument("--set", action="append", default=[], metavar="TABLE.KEY=VALUE",
                         help="overrides a setting of [api] or [run] for this run, such as --set run.interval_seconds=60. "
@@ -48,7 +49,7 @@ def main(argv=None):
         seeder.provision()
         if args.command == "once":
             seeder.once()
-    except (Locked, AccountError, ValueError) as err:
+    except (StateLockedError, AccountError, ValueError) as err:
         print(f"stopped, {err}", file=sys.stderr)
         return 1
     log("done", command=args.command)
