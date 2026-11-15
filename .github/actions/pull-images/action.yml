@@ -28,7 +28,7 @@ runs:
       if: inputs.token != ''
       # a login that times out must not fail the job, the pulls that follow then go anonymously
       continue-on-error: true
-      uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+      uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
       with:
         username: ${{ inputs.username }}
         password: ${{ inputs.token }}
